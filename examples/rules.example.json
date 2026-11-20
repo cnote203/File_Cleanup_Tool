@@ -1,0 +1,34 @@
+{
+  "archive_root": "Archive",
+  "default_action": "undecided",
+  "rules": [
+    {
+      "name": "Invoices by year",
+      "match": { "name_regex": "(?i)invoice|^inv[-_ ]", "ext": [".pdf"] },
+      "action": "move",
+      "folder": "Finance/Invoices/{year}"
+    },
+    {
+      "name": "Meeting notes",
+      "match": { "path_glob": "*meeting*", "ext": [".docx", ".md", ".txt"] },
+      "action": "move",
+      "folder": "Meetings/{year}"
+    },
+    {
+      "name": "Photos by month",
+      "match": { "ext": [".jpg", ".jpeg", ".png", ".heic"] },
+      "action": "move",
+      "folder": "Media/{year}/{month}"
+    },
+    {
+      "name": "Anything untouched for 3 years",
+      "match": { "older_than_years": 3 },
+      "action": "archive"
+    },
+    {
+      "name": "Leave policies where they are",
+      "match": { "top_folder": "Policies" },
+      "action": "keep"
+    }
+  ]
+}

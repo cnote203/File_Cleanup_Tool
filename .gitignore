@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+.pytest_cache/
+
+# Output from running the tool: these contain your real file and folder names.
+cleanup-output/
+inventory.csv
+cleanup_action_plan.csv
+suggested_plan.csv
+copy_log.csv
+demo_folder/
+decisions-*.json

@@ -1,0 +1,1071 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Folder Cleanup Explorer</title>
+<style>
+:root{
+  --ink:#1b2530; --ink2:#566170; --ink3:#8a94a1;
+  --paper:#f3f5f8; --panel:#ffffff; --line:#d8dee6; --line2:#e8ecf1;
+  --accent:#1f5f7a; --accent-bg:#e3eff4; --sel:#dcebf3;
+  --keep:#2e7d5b; --archive:#b7791f; --delete:#c0392b; --move:#5456c9; --discuss:#6b7480;
+  --keep-bg:#e1f1e9; --archive-bg:#f8ecd6; --delete-bg:#f9e0dd; --move-bg:#e4e4f8; --discuss-bg:#e6e9ed;
+  --none:#eef1f5; --radius:6px;
+  --font:"Segoe UI Variable","Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --ink:#e6ebf1; --ink2:#a5afbc; --ink3:#78828f;
+    --paper:#12171d; --panel:#1a2129; --line:#2c3541; --line2:#232b35;
+    --accent:#6fb4d1; --accent-bg:#1c303a; --sel:#223a47;
+    --keep:#5cc79a; --archive:#e0a94a; --delete:#ef7a6b; --move:#9a9cf2; --discuss:#98a2ae;
+    --keep-bg:#183428; --archive-bg:#3a2e16; --delete-bg:#3d1e1b; --move-bg:#25264a; --discuss-bg:#272e37;
+    --none:#202833;
+  }
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font:13px/1.4 var(--font);font-variant-numeric:tabular-nums;overflow:hidden}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.app{display:grid;grid-template-rows:auto auto 1fr;height:100vh}
+
+/* header */
+header{display:flex;align-items:center;gap:14px;padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line);flex-wrap:wrap}
+header h1{font-size:15px;margin:0;font-weight:650;letter-spacing:.1px}
+header .sub{color:var(--ink2);font-size:12px}
+.spacer{flex:1}
+.field{display:flex;align-items:center;gap:6px;color:var(--ink2);font-size:12px}
+.field input,.field select{border:1px solid var(--line);background:var(--panel);border-radius:var(--radius);padding:4px 8px;font-size:12px}
+.btn{border:1px solid var(--line);background:var(--panel);border-radius:var(--radius);padding:5px 10px;font-size:12px}
+.btn:hover{background:var(--none)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary:hover{filter:brightness(1.08)}
+@media (prefers-color-scheme:dark){.btn.primary{color:#0c1217}}
+.save-state{font-size:11px;color:var(--ink3)}
+.save-state.warn{color:var(--delete)}
+
+/* summary strip */
+.strip{display:flex;gap:18px;align-items:center;padding:8px 16px;background:var(--panel);border-bottom:1px solid var(--line);flex-wrap:wrap}
+.stat b{font-size:16px;font-weight:650}
+.stat span{color:var(--ink2);font-size:12px;margin-left:4px}
+.progress{flex:1;min-width:260px;max-width:520px}
+.pbar{display:flex;height:10px;border-radius:5px;overflow:hidden;background:var(--none);border:1px solid var(--line)}
+.pbar i{display:block;height:100%}
+.plabel{font-size:11px;color:var(--ink2);margin-top:3px}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:2px 9px;font-size:12px;display:flex;gap:6px;align-items:center}
+.chip:hover{background:var(--none)}
+.chip.on{outline:2px solid var(--accent)}
+.dot{width:9px;height:9px;border-radius:50%;display:inline-block}
+
+/* layout */
+.main{display:grid;grid-template-columns:380px minmax(0,1fr) 320px;min-height:0}
+.col{min-height:0;display:flex;flex-direction:column;border-right:1px solid var(--line);background:var(--panel)}
+.col:last-child{border-right:0}
+.col.center{background:var(--paper)}
+.col-head{padding:8px 10px;border-bottom:1px solid var(--line);display:flex;gap:8px;align-items:center}
+.col-head input[type=search]{flex:1;border:1px solid var(--line);border-radius:var(--radius);padding:5px 8px;background:var(--panel);font-size:12px;min-width:0}
+.scroll{overflow:auto;min-height:0;flex:1}
+
+/* tree */
+.tree{padding:4px 0}
+.row{display:flex;align-items:center;gap:4px;padding:2px 8px 2px 0;cursor:default;white-space:nowrap;border-left:3px solid transparent}
+.row:hover{background:var(--none)}
+.row.sel{background:var(--sel);border-left-color:var(--accent)}
+.caret{width:16px;text-align:center;color:var(--ink3);font-size:10px;flex:none;cursor:pointer;user-select:none}
+.ico{width:14px;flex:none;color:var(--ink3);text-align:center;font-size:12px}
+.nm{overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
+.meta{color:var(--ink3);font-size:11px;flex:none}
+.pill{font-size:11px;border-radius:4px;padding:0 6px;line-height:17px;flex:none;border:1px solid transparent;font-weight:600}
+.pill.keep{background:var(--keep-bg);color:var(--keep)}
+.pill.archive{background:var(--archive-bg);color:var(--archive)}
+.pill.delete{background:var(--delete-bg);color:var(--delete)}
+.pill.move{background:var(--move-bg);color:var(--move)}
+.pill.discuss{background:var(--discuss-bg);color:var(--discuss)}
+.pill.inh{background:transparent;border-color:currentColor;font-weight:500}
+.dim{color:var(--ink3)}
+
+/* tabs */
+.tabs{display:flex;gap:2px;padding:8px 12px 0;border-bottom:1px solid var(--line);background:var(--panel)}
+.tab{border:1px solid transparent;border-bottom:0;background:none;padding:6px 12px;border-radius:var(--radius) var(--radius) 0 0;color:var(--ink2);font-weight:550}
+.tab[aria-selected=true]{background:var(--paper);border-color:var(--line);color:var(--ink);position:relative;top:1px}
+.tab .n{color:var(--ink3);font-weight:400;margin-left:4px}
+.panel-body{padding:12px;overflow:auto;flex:1;min-height:0}
+
+/* breadcrumb */
+.crumbs{display:flex;flex-wrap:wrap;gap:2px;align-items:center;margin-bottom:8px;font-size:12px}
+.crumbs a{color:var(--accent);cursor:pointer;padding:1px 3px;border-radius:3px}
+.crumbs a:hover{background:var(--accent-bg)}
+.crumbs .sep{color:var(--ink3)}
+
+/* treemap */
+.tm{position:relative;height:250px;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;margin-bottom:12px}
+.tm .cell{position:absolute;border:1px solid var(--panel);padding:3px 5px;overflow:hidden;font-size:11px;line-height:1.25;cursor:pointer;background:var(--none);color:var(--ink)}
+.tm .cell:hover{filter:brightness(.94);outline:2px solid var(--accent);outline-offset:-2px;z-index:2}
+.tm .cell.sel{outline:2px solid var(--ink);outline-offset:-2px;z-index:3}
+.tm .cell.folder{background:#dfe6ee}
+@media (prefers-color-scheme:dark){.tm .cell.folder{background:#2a3643}}
+.tm .cell.keep{background:var(--keep-bg);box-shadow:inset 0 -3px 0 var(--keep)}
+.tm .cell.archive{background:var(--archive-bg);box-shadow:inset 0 -3px 0 var(--archive)}
+.tm .cell.delete{background:var(--delete-bg);box-shadow:inset 0 -3px 0 var(--delete)}
+.tm .cell.move{background:var(--move-bg);box-shadow:inset 0 -3px 0 var(--move)}
+.tm .cell.discuss{background:var(--discuss-bg);box-shadow:inset 0 -3px 0 var(--discuss)}
+.tm .cell b{display:block;font-weight:600;overflow:hidden;text-overflow:ellipsis}
+.tm .cell span{color:var(--ink2)}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:11px;color:var(--ink2);margin:-6px 0 10px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+
+/* tables */
+table{width:100%;table-layout:fixed;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius)}
+th{position:sticky;top:0;background:var(--panel);text-align:left;font-weight:600;font-size:11.5px;color:var(--ink2);padding:6px 8px;border-bottom:1px solid var(--line);cursor:pointer;white-space:nowrap;z-index:1}
+th.nosort{cursor:default}
+td{padding:4px 8px;border-bottom:1px solid var(--line2);vertical-align:middle;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+tr.item{cursor:default}
+tr.item:hover td{background:var(--none)}
+tr.item.sel td{background:var(--sel)}
+td.r,th.r{text-align:right}
+td.name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+td.wrap{white-space:normal}
+.n2{display:block;font-size:11px;color:var(--ink3);overflow:hidden;text-overflow:ellipsis}
+.bar{height:5px;background:var(--line2);border-radius:3px;min-width:60px}
+.bar i{display:block;height:100%;border-radius:3px;background:var(--accent)}
+.flag{font-size:10.5px;border:1px solid var(--line);border-radius:3px;padding:0 4px;color:var(--ink2);margin-right:3px;background:var(--panel)}
+.flag.dup{color:var(--delete);border-color:var(--delete)}
+.flag.stale{color:var(--archive);border-color:var(--archive)}
+.flag.empty{color:var(--ink3)}
+.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.toolbar .field{margin-right:6px}
+.note{color:var(--ink2);font-size:12px;margin:0 0 10px;max-width:80ch}
+.cat{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.cat button{border:1px solid var(--line);background:var(--panel);border-radius:var(--radius);padding:5px 10px;text-align:left}
+.cat button[aria-pressed=true]{border-color:var(--accent);background:var(--accent-bg)}
+.cat button b{display:block;font-size:15px}
+.cat button span{font-size:11px;color:var(--ink2)}
+.bulk{position:sticky;bottom:0;background:var(--panel);border:1px solid var(--accent);border-radius:var(--radius);padding:8px 10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;box-shadow:0 -4px 12px rgba(0,0,0,.08)}
+.group-head td{background:var(--none);font-weight:600;font-size:12px}
+
+/* inspector */
+.insp{padding:12px;overflow:auto;flex:1}
+.insp h2{font-size:14px;margin:0 0 2px;word-break:break-word}
+.insp .path{color:var(--ink2);font-size:11.5px;word-break:break-all;margin-bottom:10px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;margin:8px 0 12px;font-size:12px}
+.kv dt{color:var(--ink2)}
+.kv dd{margin:0;text-align:right}
+.decide{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin:8px 0}
+.dbtn{border:1px solid var(--line);background:var(--panel);border-radius:var(--radius);padding:7px 8px;text-align:left;display:flex;align-items:center;gap:7px;font-weight:600}
+.dbtn kbd{margin-left:auto;font:11px var(--font);color:var(--ink3);border:1px solid var(--line);border-radius:3px;padding:0 4px;font-weight:400}
+.dbtn.keep{color:var(--keep)} .dbtn.archive{color:var(--archive)} .dbtn.delete{color:var(--delete)} .dbtn.move{color:var(--move)} .dbtn.discuss{color:var(--discuss)}
+.dbtn.keep.on{background:var(--keep-bg);border-color:var(--keep)}
+.dbtn.archive.on{background:var(--archive-bg);border-color:var(--archive)}
+.dbtn.delete.on{background:var(--delete-bg);border-color:var(--delete)}
+.dbtn.move.on{background:var(--move-bg);border-color:var(--move)}
+.dbtn.discuss.on{background:var(--discuss-bg);border-color:var(--discuss)}
+.dbtn:hover{background:var(--none)}
+.insp label{display:block;font-size:12px;color:var(--ink2);margin:10px 0 3px}
+.insp input[type=text],.insp textarea{width:100%;border:1px solid var(--line);border-radius:var(--radius);padding:6px 8px;background:var(--panel)}
+.insp textarea{min-height:64px;resize:vertical}
+.votes{margin-top:12px;border-top:1px solid var(--line);padding-top:8px}
+.votes div{display:flex;gap:6px;align-items:center;margin:4px 0;font-size:12px}
+.callout{background:var(--accent-bg);border-radius:var(--radius);padding:8px 10px;font-size:12px;margin:8px 0}
+.callout.warn{background:var(--delete-bg)}
+.link{color:var(--accent);cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+.empty-note{padding:30px 12px;color:var(--ink2);text-align:center}
+.small{font-size:11.5px;color:var(--ink2)}
+
+/* modal */
+.modal-bg{position:fixed;inset:0;background:rgba(10,15,20,.5);display:none;align-items:center;justify-content:center;z-index:50}
+.modal-bg.open{display:flex}
+.modal{background:var(--panel);border-radius:10px;padding:20px;width:min(460px,92vw);border:1px solid var(--line)}
+.modal h3{margin:0 0 6px;font-size:16px}
+.modal p{margin:0 0 12px;color:var(--ink2)}
+.modal input{width:100%;border:1px solid var(--line);border-radius:var(--radius);padding:8px;background:var(--panel);margin-bottom:12px}
+.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--paper);padding:8px 14px;border-radius:var(--radius);font-size:12px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:60}
+.toast.show{opacity:1}
+
+@media (max-width:1180px){
+  body{overflow:auto}
+  .app{height:auto}
+  .main{grid-template-columns:300px minmax(0,1fr)}
+  .col.inspector{grid-column:1 / -1;border-top:1px solid var(--line)}
+  .col{max-height:90vh}
+}
+
+/* map views */
+.mapbar{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.seg{display:flex;align-items:center;gap:0}
+.segl{font-size:11px;color:var(--ink3);margin-right:6px;text-transform:uppercase;letter-spacing:.06em}
+.segb{border:1px solid var(--line);background:var(--panel);color:var(--ink2);padding:5px 10px;font-size:12px;font-weight:550;cursor:pointer;min-height:30px}
+.segb:first-of-type{border-radius:var(--radius) 0 0 var(--radius)}
+.segb:last-of-type{border-radius:0 var(--radius) var(--radius) 0;border-left:0}
+.segb[aria-pressed=true]{background:var(--accent-bg);color:var(--ink);border-color:var(--accent)}
+.segb:focus-visible,.crow:focus-visible,.chead:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.mapnote{margin:0 0 10px}
+.motion input[type=range]{width:120px;accent-color:var(--accent);margin:0}
+.webroot{display:flex;flex-direction:column;height:100%;min-height:460px}
+.webwrap{position:relative;flex:1;min-height:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--panel)}
+.webwrap canvas{display:block}
+.webcard{position:absolute;left:10px;bottom:10px;width:260px;max-height:70%;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px;box-shadow:0 6px 24px rgba(0,0,0,.18);display:flex;flex-direction:column;gap:4px}
+.webcard[hidden]{display:none}
+.wc-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;cursor:grab;touch-action:none;user-select:none;margin:-4px -4px 0;padding:4px}
+.wc-head:active{cursor:grabbing}
+.wc-x{border:0;background:none;color:var(--ink2);font-size:20px;line-height:1;cursor:pointer;padding:0 4px;min-width:28px;min-height:28px;border-radius:6px}
+.wc-x:hover{background:var(--none)}
+.wc-title{font-weight:650;font-size:14px;line-height:1.25}
+.wc-sub{font-size:12px;color:var(--ink2)}
+.wc-big{font-size:22px;font-weight:700;margin:2px 0}
+.wc-h{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);margin-top:6px}
+.wc-row{display:flex;justify-content:space-between;gap:8px;font-size:12px}
+.wc-row span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cbar{height:5px;border-radius:3px;background:var(--line2);margin:2px 0 4px;overflow:hidden;display:block}
+.cbar i{display:block;height:100%;border-radius:3px}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+.ccard{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden;display:flex;flex-direction:column}
+.chead{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:12px 14px;border:0;color:#0b1220;text-align:left;font:inherit;width:100%}
+button.chead{cursor:pointer}
+.cname{font-weight:700;font-size:15px;line-height:1.2}
+.ctot{font-size:12px;font-weight:550;white-space:nowrap}
+.crows{display:flex;flex-direction:column;padding:4px 6px 8px}
+.crow{display:flex;flex-direction:column;gap:3px;padding:7px 8px;border:0;background:none;color:var(--ink);font:inherit;text-align:left;border-radius:6px;width:100%;min-height:36px}
+button.crow{cursor:pointer}
+button.crow:hover{background:var(--none)}
+.crow-top{display:flex;justify-content:space-between;gap:8px;font-size:12.5px}
+.cn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:550}
+.cv{color:var(--ink2);white-space:nowrap}
+@media (max-width:760px){
+  .main{grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion:reduce){.toast{transition:none}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>Folder Cleanup Explorer</h1>
+    <span class="sub" id="datasetInfo"></span>
+    <span class="spacer"></span>
+    <label class="field">Reviewer <input id="reviewer" type="text" size="14" placeholder="Your name"></label>
+    <label class="field">Archive folder <input id="archiveRoot" type="text" size="12" value="Archive"></label>
+    <button class="btn" id="btnImport" title="Add decisions that teammates exported">Import teammates' decisions</button>
+    <button class="btn" id="btnShare" title="Download your decisions to send to the lead">Save my decisions</button>
+    <button class="btn primary" id="btnExport">Export action plan (CSV)</button>
+    <span class="save-state" id="saveState"></span>
+  </header>
+
+  <div class="strip">
+    <div class="stat"><b id="sFiles">0</b><span>files</span></div>
+    <div class="stat"><b id="sFolders">0</b><span>folders</span></div>
+    <div class="stat"><b id="sSize">0</b><span>total</span></div>
+    <div class="progress">
+      <div class="pbar" id="pbar"></div>
+      <div class="plabel" id="plabel"></div>
+    </div>
+    <div class="chips" id="chips"></div>
+  </div>
+
+  <div class="main">
+    <section class="col" aria-label="Folder tree">
+      <div class="col-head">
+        <input type="search" id="treeSearch" placeholder="Find a folder or file name">
+        <button class="btn" id="btnCollapse" title="Collapse all">Collapse</button>
+      </div>
+      <div class="scroll" id="treeScroll"><div class="tree" id="tree" role="tree"></div></div>
+    </section>
+
+    <section class="col center" aria-label="Explorer">
+      <div class="tabs" role="tablist">
+        <button class="tab" role="tab" data-tab="folder" aria-selected="true">Folder view</button>
+        <button class="tab" role="tab" data-tab="web" aria-selected="false">Web</button>
+        <button class="tab" role="tab" data-tab="structure" aria-selected="false">Structure</button>
+        <button class="tab" role="tab" data-tab="findings" aria-selected="false">Findings</button>
+        <button class="tab" role="tab" data-tab="decisions" aria-selected="false">Decisions<span class="n" id="nDec"></span></button>
+      </div>
+      <div class="panel-body" id="tabBody"></div>
+    </section>
+
+    <aside class="col inspector" aria-label="Inspector">
+      <div class="insp" id="insp"></div>
+    </aside>
+  </div>
+</div>
+
+<div class="modal-bg" id="nameModal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="nmTitle">
+    <h3 id="nmTitle">Who is reviewing?</h3>
+    <p>Your name goes on every decision you make, so the team lead can compare reviews.</p>
+    <input id="nameInput" type="text" placeholder="e.g. Christopher">
+    <div style="text-align:right"><button class="btn primary" id="nameOk">Start reviewing</button></div>
+  </div>
+</div>
+<input type="file" id="fileImport" accept=".json,application/json" multiple hidden>
+<input type="file" id="fileCsv" accept=".csv,text/csv" hidden>
+<input type="file" id="filePlan" accept=".csv,text/csv" hidden>
+<div class="toast" id="toast"></div>
+
+<script>
+/*__DATA__*/
+</script>
+<script>
+(function(){
+'use strict';
+const SEP='\\';
+const DEC=['keep','archive','delete','move','discuss'];
+const DLABEL={keep:'Keep as is',archive:'Archive',delete:'Delete',move:'Move',discuss:'Discuss'};
+const DSHORT={keep:'Keep',archive:'Archive',delete:'Delete',move:'Move',discuss:'Discuss'};
+const DKEY={keep:'K',archive:'A',delete:'D',move:'M',discuss:'S'};
+const LS='sp-cleanup-explorer-v1';
+
+/* ---------- state ---------- */
+const S={
+  nodes:[], byPath:new Map(), root:null,
+  expanded:new Set(), selected:null, sort:{k:'size',dir:-1},
+  tab:'folder', showSystem:false, staleMonths:12,
+  findCat:'dup', findSel:new Set(), findLimit:300, childLimit:150,
+  filterDec:null, reviewer:'', archiveRoot:'Archive',
+  mine:{}, others:{}, saved:true, lsOk:true, treeQuery:'', dupGroups:[], verFamilies:[],
+  datasetName:'inventory.csv'
+};
+
+/* ---------- helpers ---------- */
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function fmtSize(kb){
+  if(!kb) return '0 KB';
+  if(kb<1024) return (kb<10?kb.toFixed(1):Math.round(kb))+' KB';
+  const mb=kb/1024; if(mb<1024) return (mb<10?mb.toFixed(1):Math.round(mb))+' MB';
+  return (mb/1024).toFixed(2)+' GB';
+}
+const fmtN=n=>n.toLocaleString('en-CA');
+function toast(msg){const t=$('toast');t.textContent=msg;t.classList.add('show');clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.remove('show'),2400)}
+
+function parseCSV(text){
+  const rows=[];let row=[],f='',q=false;
+  for(let i=0;i<text.length;i++){
+    const c=text[i];
+    if(q){
+      if(c==='"'){ if(text[i+1]==='"'){f+='"';i++} else q=false }
+      else f+=c;
+    }else if(c==='"') q=true;
+    else if(c===','){row.push(f);f=''}
+    else if(c==='\n'){row.push(f);rows.push(row);row=[];f=''}
+    else if(c==='\r'){}
+    else f+=c;
+  }
+  if(f.length||row.length){row.push(f);rows.push(row)}
+  return rows;
+}
+
+/* ---------- dataset ---------- */
+function loadDataset(csvText,name){
+  const rows=parseCSV(csvText);
+  const head=rows.shift().map(h=>h.trim().toLowerCase());
+  const ix=k=>head.indexOf(k);
+  const iP=ix('path'),iT=ix('type'),iS=ix('size_kb'),iM=ix('modified');
+  if(iP<0||iT<0){toast('That CSV needs "path" and "type" columns');return false}
+  const nodes=[];const byPath=new Map();
+  const root={id:0,path:'',name:'(root folder)',isFolder:true,parent:null,children:[],size:0,mod:'',depth:0};
+  nodes.push(root);byPath.set('',root);
+  function ensure(path){
+    if(byPath.has(path)) return byPath.get(path);
+    const i=path.lastIndexOf(SEP);
+    const parentPath=i<0?'':path.slice(0,i);
+    const p=ensure(parentPath);
+    const n={id:nodes.length,path,name:i<0?path:path.slice(i+1),isFolder:true,parent:p,children:[],size:0,mod:'',depth:p.depth+1};
+    nodes.push(n);byPath.set(path,n);p.children.push(n);return n;
+  }
+  for(const r of rows){
+    if(!r[iP]) continue;
+    const path=r[iP];const isFolder=(r[iT]||'').trim()==='folder';
+    const i=path.lastIndexOf(SEP);
+    const p=ensure(i<0?'':path.slice(0,i));
+    let n=byPath.get(path);
+    if(!n){
+      n={id:nodes.length,path,name:i<0?path:path.slice(i+1),isFolder,parent:p,children:[],size:0,mod:'',depth:p.depth+1};
+      nodes.push(n);byPath.set(path,n);p.children.push(n);
+    }
+    n.isFolder=isFolder;
+    n.size=isFolder?0:(parseFloat(r[iS])||0);
+    n.mod=(iM>=0?r[iM]:'')||'';
+    const dot=n.name.lastIndexOf('.');
+    n.ext=(!isFolder&&dot>0)?n.name.slice(dot).toLowerCase():'';
+  }
+  S.nodes=nodes;S.byPath=byPath;S.root=root;S.datasetName=name||'inventory.csv';
+  computeFlags();computeRollups();
+  S.expanded=new Set([root.id]);
+  S.selected=root;
+  return true;
+}
+
+const MESSY=/\b(final|copy|draft|backup|temp|old|new)\b|\bv\d+(\.\d+)*\b|\(\d+\)|- copy|~\$/i;
+function isSystem(n){return !n.isFolder&&(/^(desktop\.ini|thumbs\.db|\.ds_store)$/i.test(n.name)||n.name.startsWith('~$'))}
+function familyKey(name){
+  let s=name.toLowerCase().replace(/\.[a-z0-9]{1,5}$/,'');
+  s=s.replace(/\(\d+\)/g,' ').replace(/\bv\d+(\.\d+)*\b/g,' ').replace(/\b(copy|draft|final|signed|fully|executed|editable|original|revised|version|template|amd\d*|rev\d*)\b/g,' ');
+  s=s.replace(/\d{6,8}/g,' ').replace(/[^a-z0-9]+/g,' ').trim();
+  return s;
+}
+function computeFlags(){
+  const files=S.nodes.filter(n=>!n.isFolder);
+  files.forEach(n=>{n.system=isSystem(n);n.messy=MESSY.test(n.name);n.dupGroup=null;n.family=null});
+  S.nodes.forEach(n=>{n.longPath=n.path.length>200;n.deep=n.depth>=8});
+  const g=new Map();
+  for(const n of files){ if(n.system||n.size<=0) continue; const k=n.name.toLowerCase()+'|'+n.size; (g.get(k)||g.set(k,[]).get(k)).push(n)}
+  S.dupGroups=[];
+  for(const arr of g.values()) if(arr.length>1){arr.sort((a,b)=>a.path.length-b.path.length);S.dupGroups.push(arr);arr.forEach(n=>n.dupGroup=arr)}
+  S.dupGroups.sort((a,b)=>b[0].size*(b.length-1)-a[0].size*(a.length-1));
+  const f=new Map();
+  for(const n of files){ if(n.system) continue; const key=n.parent.id+'|'+familyKey(n.name); if(key.endsWith('|')) continue; (f.get(key)||f.set(key,[]).get(key)).push(n)}
+  S.verFamilies=[];
+  for(const arr of f.values()){
+    if(arr.length<2) continue;
+    if(arr.every(n=>n.dupGroup&&n.dupGroup===arr[0].dupGroup)) continue;
+    arr.sort((a,b)=>(b.mod||'').localeCompare(a.mod||'')||a.name.localeCompare(b.name));
+    S.verFamilies.push(arr);arr.forEach(n=>n.family=arr);
+  }
+  S.verFamilies.sort((a,b)=>b.length-a.length);
+}
+function visible(n){return S.showSystem||!n.system}
+function computeRollups(){
+  const rec=n=>{
+    n.rFiles=0;n.rSize=0;n.rLast='';n.rDup=0;n.rFolders=0;
+    if(!n.isFolder){
+      if(visible(n)){n.rFiles=1;n.rSize=n.size;n.rLast=n.mod;n.rDup=n.dupGroup?1:0}
+      return;
+    }
+    for(const c of n.children){
+      rec(c);
+      n.rFiles+=c.rFiles;n.rSize+=c.rSize;n.rDup+=c.rDup;n.rFolders+=c.isFolder?1+c.rFolders:0;
+      if(c.rLast>n.rLast) n.rLast=c.rLast;
+    }
+    n.isEmpty=n.rFiles===0;
+  };
+  rec(S.root);
+}
+function cutoff(){const d=new Date();d.setMonth(d.getMonth()-S.staleMonths);return d.toISOString().slice(0,10)}
+function isStale(n){
+  const last=n.isFolder?n.rLast:n.mod;
+  if(!last) return false;
+  return last<cutoff();
+}
+
+/* ---------- decisions ---------- */
+function ownDec(map,n){return map[n.path]||null}
+function effective(map,n){
+  let cur=n;
+  while(cur){const d=map[cur.path];if(d&&d.d) return {d:d.d,dest:d.dest||'',note:d.note||'',from:cur,inherited:cur!==n}; cur=cur.parent}
+  return null;
+}
+function myEff(n){return effective(S.mine,n)}
+function setDecision(nodes,d,extra){
+  const t=Date.now();
+  for(const n of nodes){
+    if(n===S.root) continue;
+    if(d===null){delete S.mine[n.path];continue}
+    const prev=S.mine[n.path]||{};
+    S.mine[n.path]={d,dest:d==='move'?(extra&&extra.dest!==undefined?extra.dest:prev.dest||''):'',note:extra&&extra.note!==undefined?extra.note:(prev.note||''),t};
+  }
+  persist();renderAll();
+}
+function setNote(n,note,dest){
+  const cur=S.mine[n.path];
+  if(!cur) return;
+  if(note!==undefined) cur.note=note;
+  if(dest!==undefined) cur.dest=dest;
+  persist();renderStrip();renderDecisionsTabCount();
+}
+function persist(){
+  try{
+    localStorage.setItem(LS,JSON.stringify({reviewer:S.reviewer,archiveRoot:S.archiveRoot,mine:S.mine,others:S.others}));
+    S.saved=true;S.lsOk=true;
+  }catch(e){S.lsOk=false;S.saved=false}
+  renderSaveState();
+}
+function restore(){
+  try{
+    const raw=localStorage.getItem(LS);
+    if(raw){const o=JSON.parse(raw);S.reviewer=o.reviewer||'';S.archiveRoot=o.archiveRoot||'Archive';S.mine=o.mine||{};S.others=o.others||{}}
+  }catch(e){S.lsOk=false}
+}
+function renderSaveState(){
+  const el=$('saveState');
+  if(!S.lsOk){el.textContent='Not auto-saving in this browser. Use "Save my decisions" often.';el.className='save-state warn'}
+  else{el.textContent='Saved in this browser';el.className='save-state'}
+}
+
+/* ---------- tree ---------- */
+function visibleRows(){
+  const out=[];const q=S.treeQuery.trim().toLowerCase();
+  if(q){
+    const match=new Set();
+    for(const n of S.nodes){ if(n===S.root||!visible(n)) continue; if(n.name.toLowerCase().includes(q)){let c=n;while(c){match.add(c.id);c=c.parent}} }
+    const walk=n=>{
+      for(const c of sortedChildren(n,true)){ if(!visible(c)||!match.has(c.id)) continue; out.push(c); if(c.isFolder) walk(c)}
+    };
+    walk(S.root);return out;
+  }
+  const walk=n=>{
+    for(const c of sortedChildren(n,true)){
+      if(!visible(c)) continue;
+      out.push(c);
+      if(c.isFolder&&S.expanded.has(c.id)) walk(c);
+    }
+  };
+  walk(S.root);return out;
+}
+function sortedChildren(n,tree){
+  const arr=n.children.slice();
+  if(tree) arr.sort((a,b)=>(b.isFolder-a.isFolder)||a.name.localeCompare(b.name,undefined,{numeric:true}));
+  return arr;
+}
+function renderTree(){
+  const rows=visibleRows();
+  const q=S.treeQuery.trim();
+  const html=[];
+  for(const n of rows){
+    const e=myEff(n);
+    const open=q?true:S.expanded.has(n.id);
+    const pill=e?`<span class="pill ${e.d}${e.inherited?' inh':''}" title="${DLABEL[e.d]}${e.inherited?' (from parent folder)':''}">${DSHORT[e.d]}</span>`:'';
+    const meta=n.isFolder?`${fmtN(n.rFiles)} · ${fmtSize(n.rSize)}`:fmtSize(n.size);
+    html.push(`<div class="row${S.selected===n?' sel':''}" data-id="${n.id}" role="treeitem" style="padding-left:${(n.depth-1)*14+4}px" ${n.isFolder?`aria-expanded="${open}"`:''}>
+      <span class="caret" data-caret="${n.id}">${n.isFolder&&n.children.length?(open?'▾':'▸'):''}</span>
+      <span class="ico">${n.isFolder?'▣':'▫'}</span>
+      <span class="nm" title="${esc(n.name)}">${esc(n.name)}</span>
+      ${pill}<span class="meta">${meta}</span></div>`);
+  }
+  $('tree').innerHTML=html.join('')||'<div class="empty-note">Nothing matches.</div>';
+}
+
+/* ---------- strip ---------- */
+function renderStrip(){
+  const files=S.nodes.filter(n=>!n.isFolder&&visible(n));
+  const folders=S.nodes.filter(n=>n.isFolder&&n!==S.root);
+  $('sFiles').textContent=fmtN(files.length);
+  $('sFolders').textContent=fmtN(folders.length);
+  $('sSize').textContent=fmtSize(S.root.rSize);
+  const tally={keep:[0,0],archive:[0,0],delete:[0,0],move:[0,0],discuss:[0,0],none:[0,0]};
+  for(const f of files){const e=myEff(f);const k=e?e.d:'none';tally[k][0]++;tally[k][1]+=f.size}
+  const total=files.length||1;
+  const colors={keep:'var(--keep)',archive:'var(--archive)',delete:'var(--delete)',move:'var(--move)',discuss:'var(--discuss)'};
+  $('pbar').innerHTML=DEC.map(d=>`<i style="width:${tally[d][0]/total*100}%;background:${colors[d]}" title="${DSHORT[d]}: ${fmtN(tally[d][0])} files"></i>`).join('');
+  const decided=files.length-tally.none[0];
+  $('plabel').textContent=`${Math.round(decided/total*100)}% of files have a decision (${fmtN(decided)} of ${fmtN(files.length)}). Delete + archive would clear ${fmtSize(tally.delete[1]+tally.archive[1])}.`;
+  $('chips').innerHTML=DEC.concat(['none']).map(d=>{
+    const lab=d==='none'?'Undecided':DSHORT[d];
+    const col=d==='none'?'var(--ink3)':colors[d];
+    return `<button class="chip${S.filterDec===d?' on':''}" data-chip="${d}" title="Show only ${lab.toLowerCase()} items in Folder view"><span class="dot" style="background:${col}"></span>${lab} <b>${fmtN(tally[d][0])}</b></button>`;
+  }).join('');
+}
+
+/* ---------- treemap ---------- */
+function squarify(items,x,y,w,h){
+  const out=[];
+  const total=items.reduce((s,i)=>s+i.v,0);
+  if(total<=0||w<=0||h<=0) return out;
+  const scale=(w*h)/total;
+  let rest=items.map(i=>({...i,a:i.v*scale}));
+  let cx=x,cy=y,cw=w,ch=h;
+  function worst(row,side){
+    const s=row.reduce((a,b)=>a+b.a,0);const mx=Math.max(...row.map(r=>r.a)),mn=Math.min(...row.map(r=>r.a));
+    return Math.max(side*side*mx/(s*s),(s*s)/(side*side*mn));
+  }
+  while(rest.length){
+    const side=Math.min(cw,ch);
+    let row=[rest[0]];let i=1;
+    while(i<rest.length&&worst(row.concat(rest[i]),side)<=worst(row,side)){row.push(rest[i]);i++}
+    const s=row.reduce((a,b)=>a+b.a,0);
+    if(cw>=ch){
+      const rw=s/ch;let yy=cy;
+      for(const r of row){const rh=r.a/rw;out.push({...r,x:cx,y:yy,w:rw,h:rh});yy+=rh}
+      cx+=rw;cw-=rw;
+    }else{
+      const rh=s/cw;let xx=cx;
+      for(const r of row){const rw=r.a/rh;out.push({...r,x:xx,y:cy,w:rw,h:rh});xx+=rw}
+      cy+=rh;ch-=rh;
+    }
+    rest=rest.slice(row.length);
+  }
+  return out;
+}
+function viewFolder(){const s=S.selected||S.root;return s.isFolder?s:s.parent}
+function drawTreemap(folder){
+  const host=$('tm');if(!host) return;
+  const kids=folder.children.filter(visible).map(c=>({n:c,v:c.isFolder?c.rSize:c.size})).filter(k=>k.v>0).sort((a,b)=>b.v-a.v);
+  if(!kids.length){host.innerHTML='<div class="empty-note">Nothing with size in this folder.</div>';return}
+  const W=host.clientWidth,H=host.clientHeight;
+  const MAX=70;let items=kids;let other=null;
+  if(kids.length>MAX){const rest=kids.slice(MAX);other={n:null,v:rest.reduce((s,k)=>s+k.v,0),count:rest.length};items=kids.slice(0,MAX).concat([other])}
+  const cells=squarify(items,0,0,W,H);
+  host.innerHTML=cells.map(c=>{
+    if(!c.n) return `<div class="cell" style="left:${c.x}px;top:${c.y}px;width:${c.w}px;height:${c.h}px" title="${c.count} smaller items"><b>+${c.count} smaller</b><span>${fmtSize(c.v)}</span></div>`;
+    const e=myEff(c.n);
+    const lab=c.w>60&&c.h>30?`<b>${esc(c.n.name)}</b><span>${fmtSize(c.v)}</span>`:'';
+    return `<div class="cell ${c.n.isFolder?'folder':''} ${e?e.d:''}${S.selected===c.n?' sel':''}" data-id="${c.n.id}" style="left:${c.x}px;top:${c.y}px;width:${c.w}px;height:${c.h}px" title="${esc(c.n.name)} · ${fmtSize(c.v)}${e?' · '+DLABEL[e.d]:''}">${lab}</div>`;
+  }).join('');
+}
+
+/* ---------- folder view ---------- */
+function flagsHTML(n){
+  const f=[];
+  if(n.dupGroup) f.push('<span class="flag dup" title="Same name and size exists elsewhere">dup</span>');
+  if(!n.isFolder&&n.family) f.push('<span class="flag" title="Similar file names in this folder (versions or copies)">versions</span>');
+  if(isStale(n)) f.push(`<span class="flag stale" title="Nothing changed in ${S.staleMonths}+ months">stale</span>`);
+  if(n.isFolder&&n.isEmpty) f.push('<span class="flag empty" title="No files inside">empty</span>');
+  if(n.isFolder&&n.rDup) f.push(`<span class="flag dup" title="Files inside with duplicates elsewhere">${n.rDup} dup</span>`);
+  if(n.longPath) f.push('<span class="flag" title="Path over 200 characters">long path</span>');
+  return f.join('');
+}
+function decPill(n){
+  const e=myEff(n);
+  if(!e) return '<span class="dim">—</span>';
+  return `<span class="pill ${e.d}${e.inherited?' inh':''}" title="${e.inherited?'Inherited from '+esc(e.from.name):''}">${DSHORT[e.d]}</span>`;
+}
+function renderFolderTab(){
+  const folder=viewFolder();
+  let kids=folder.children.filter(visible);
+  if(S.filterDec){kids=kids.filter(c=>{const e=myEff(c);return S.filterDec==='none'?!e:(e&&e.d===S.filterDec)})}
+  const k=S.sort.k,dir=S.sort.dir;
+  kids.sort((a,b)=>{
+    let r=0;
+    if(k==='name') r=a.name.localeCompare(b.name,undefined,{numeric:true});
+    else if(k==='size') r=(a.isFolder?a.rSize:a.size)-(b.isFolder?b.rSize:b.size);
+    else if(k==='files') r=(a.rFiles)-(b.rFiles);
+    else if(k==='last') r=((a.isFolder?a.rLast:a.mod)||'').localeCompare((b.isFolder?b.rLast:b.mod)||'');
+    return (r||a.name.localeCompare(b.name))*(k==='name'?-dir*-1:dir);
+  });
+  const crumbs=[];let c=folder;while(c){crumbs.unshift(c);c=c.parent}
+  const maxSize=Math.max(1,...kids.map(x=>x.isFolder?x.rSize:x.size));
+  const shown=kids.slice(0,S.childLimit);
+  const arrow=key=>S.sort.k===key?(S.sort.dir<0?' ↓':' ↑'):'';
+  const filt=S.filterDec?`<div class="callout">Showing only <b>${S.filterDec==='none'?'undecided':DSHORT[S.filterDec]}</b> items in this folder. <span class="link" data-clearfilter="1">Show everything</span></div>`:'';
+  $('tabBody').innerHTML=`
+    <div class="crumbs">${crumbs.map((x,i)=>`<a data-go="${x.id}">${esc(x===S.root?'Root folder':x.name)}</a>${i<crumbs.length-1?'<span class="sep">/</span>':''}`).join('')}</div>
+    <div class="tm" id="tm"></div>
+    <div class="legend"><span><i style="background:#dfe6ee"></i>Folder, undecided</span><span><i style="background:var(--keep)"></i>Keep</span><span><i style="background:var(--archive)"></i>Archive</span><span><i style="background:var(--delete)"></i>Delete</span><span><i style="background:var(--move)"></i>Move</span><span><i style="background:var(--discuss)"></i>Discuss</span><span>Area shows size. Click to select, double-click a folder to open it.</span></div>
+    ${filt}
+    <table><colgroup><col><col style="width:80px"><col style="width:84px"><col style="width:56px"><col style="width:104px"><col style="width:178px"><col style="width:84px"></colgroup><thead><tr>
+      <th data-sort="name">Name${arrow('name')}</th><th data-sort="size" class="r">Size${arrow('size')}</th><th class="nosort"></th>
+      <th data-sort="files" class="r">Files${arrow('files')}</th><th data-sort="last">Last change${arrow('last')}</th><th class="nosort">Flags</th><th class="nosort">Decision</th></tr></thead>
+    <tbody>${shown.map(n=>{
+      const sz=n.isFolder?n.rSize:n.size;
+      return `<tr class="item${S.selected===n?' sel':''}" data-id="${n.id}" data-open="${n.isFolder?1:0}">
+        <td class="name" title="${esc(n.name)}"><span class="ico">${n.isFolder?'▣':'▫'}</span> ${esc(n.name)}</td>
+        <td class="r">${fmtSize(sz)}</td><td><div class="bar"><i style="width:${sz/maxSize*100}%"></i></div></td>
+        <td class="r">${n.isFolder?fmtN(n.rFiles):''}</td><td>${(n.isFolder?n.rLast:n.mod)||''}</td>
+        <td>${flagsHTML(n)}</td><td>${decPill(n)}</td></tr>`}).join('')}
+    ${kids.length===0?'<tr><td colspan="7" class="empty-note">This folder is empty.</td></tr>':''}</tbody></table>
+    ${kids.length>shown.length?`<p class="small">Showing ${shown.length} of ${kids.length}. <span class="link" data-more="1">Show 150 more</span></p>`:''}`;
+  drawTreemap(folder);
+}
+
+/* ---------- findings ---------- */
+function findCats(){
+  const files=S.nodes.filter(n=>!n.isFolder&&visible(n));
+  const dupFiles=files.filter(n=>n.dupGroup);
+  const reclaim=S.dupGroups.reduce((s,g)=>s+g[0].size*(g.length-1),0);
+  return {
+    dup:{label:'Duplicates',count:S.dupGroups.length,sub:`${fmtN(dupFiles.length)} files, ${fmtSize(reclaim)} in extra copies`,
+      desc:'Files with the same name and size in more than one place. Each group lists every copy. The shortest path is suggested as the one to keep.'},
+    ver:{label:'Version families',count:S.verFamilies.length,sub:'similar names in one folder',
+      desc:'Files in the same folder whose names differ only by words like draft, final, signed, copy or a version number. Newest is listed first.'},
+    stale:{label:'Not touched lately',count:files.filter(isStale).length,sub:`no change in ${S.staleMonths}+ months`,
+      desc:'Files whose last modified date is older than the cutoff. Change the cutoff to see how the list moves.'},
+    empty:{label:'Empty folders',count:S.nodes.filter(n=>n.isFolder&&n!==S.root&&n.isEmpty).length,sub:'no files inside',
+      desc:'Folders with no files anywhere beneath them. Usually safe to delete, but check they are not placeholders someone expects.'},
+    large:{label:'Large files',count:files.filter(n=>n.size>=10240).length,sub:'10 MB or more',
+      desc:'Big files that dominate storage. A good place to look for old briefings, scans and attachments.'},
+    messy:{label:'Messy names',count:files.filter(n=>n.messy).length,sub:'copy, final, v2, (1)…',
+      desc:'Names containing words or markers that suggest a working copy or leftover version.'},
+    long:{label:'Long paths',count:S.nodes.filter(n=>n!==S.root&&n.longPath&&visible(n)).length,sub:'over 200 characters',
+      desc:'Paths this long risk breaking sync and Windows file limits. Moving the item higher in the tree or shortening names fixes it.'},
+    deep:{label:'Deeply nested',count:files.filter(n=>n.deep).length,sub:'8+ levels down',
+      desc:'Files buried eight or more folders deep. Candidates for a flatter structure.'},
+    sys:{label:'System files',count:S.nodes.filter(isSystem).length,sub:'desktop.ini and similar',
+      desc:'Files created by Windows or Office, not by your team. Hidden from counts unless you turn them on in the toolbar below.'}
+  };
+}
+function findItems(cat){
+  const files=S.nodes.filter(n=>!n.isFolder);
+  switch(cat){
+    case 'dup': return null;
+    case 'ver': return null;
+    case 'stale': return files.filter(n=>visible(n)&&isStale(n)).sort((a,b)=>(a.mod||'').localeCompare(b.mod||''));
+    case 'empty': return S.nodes.filter(n=>n.isFolder&&n!==S.root&&n.isEmpty).sort((a,b)=>a.path.localeCompare(b.path));
+    case 'large': return files.filter(n=>visible(n)&&n.size>=10240).sort((a,b)=>b.size-a.size);
+    case 'messy': return files.filter(n=>visible(n)&&n.messy).sort((a,b)=>a.path.localeCompare(b.path));
+    case 'long': return S.nodes.filter(n=>n!==S.root&&n.longPath&&visible(n)).sort((a,b)=>b.path.length-a.path.length);
+    case 'deep': return files.filter(n=>visible(n)&&n.deep).sort((a,b)=>b.depth-a.depth);
+    case 'sys': return files.filter(n=>n.system).sort((a,b)=>a.path.localeCompare(b.path));
+  }
+}
+function shortFolder(n){
+  const parts=n.path.split(SEP);parts.pop();
+  if(!parts.length) return 'root folder';
+  return parts.length>3?parts.slice(0,2).join(SEP)+SEP+'…'+SEP+parts[parts.length-1]:parts.join(SEP);
+}
+function pathHTML(n){
+  return `${n.isFolder?'▣':'▫'} ${esc(n.name)}<span class="n2">${esc(shortFolder(n))}</span>`;
+}
+function renderFindings(){
+  const cats=findCats();
+  const c=cats[S.findCat];
+  const items=findItems(S.findCat);
+  let body='';
+  const sel=S.findSel;
+  const row=(n,extra)=>`<tr class="item${S.selected===n?' sel':''}" data-id="${n.id}">
+      <td><input type="checkbox" data-chk="${n.id}" ${sel.has(n.id)?'checked':''} aria-label="Select"></td>
+      <td class="name" title="${esc(n.path)}">${pathHTML(n)}</td>
+      <td class="r">${fmtSize(n.isFolder?n.rSize:n.size)}</td><td>${(n.isFolder?n.rLast:n.mod)||''}</td><td>${extra||''}</td><td>${decPill(n)}</td></tr>`;
+  const head=`<colgroup><col style="width:30px"><col><col style="width:80px"><col style="width:104px"><col style="width:112px"><col style="width:84px"></colgroup><thead><tr><th class="nosort"></th><th class="nosort">Name and folder</th><th class="nosort r">Size</th><th class="nosort">Changed</th><th class="nosort">Note</th><th class="nosort">Decision</th></tr></thead>`;
+  if(S.findCat==='dup'||S.findCat==='ver'){
+    const groups=S.findCat==='dup'?S.dupGroups:S.verFamilies;
+    const lim=Math.ceil(S.findLimit/4);
+    body=`<table>${head}<tbody>${groups.slice(0,lim).map((g,gi)=>{
+      const h=S.findCat==='dup'
+        ?`<tr class="group-head"><td colspan="6">${esc(g[0].name)} · ${fmtSize(g[0].size)} · ${g.length} copies</td></tr>`
+        :`<tr class="group-head"><td colspan="6">${g.length} similar files in ${esc(g[0].parent.path||'root folder')}</td></tr>`;
+      return h+g.map((n,i)=>row(n,S.findCat==='dup'?(i===0?'<span class="flag">suggested keep</span>':''):'')).join('');
+    }).join('')}</tbody></table>${groups.length>lim?`<p class="small">Showing ${lim} of ${groups.length} groups. <span class="link" data-morefind="1">Show more</span></p>`:''}`;
+  }else{
+    const lim=S.findLimit;
+    body=`<table>${head}<tbody>${items.slice(0,lim).map(n=>row(n,S.findCat==='long'?`${n.path.length} chars`:S.findCat==='deep'?`level ${n.depth}`:S.findCat==='stale'&&n.isFolder?'':'')).join('')}</tbody></table>${items.length>lim?`<p class="small">Showing ${lim} of ${fmtN(items.length)}. <span class="link" data-morefind="1">Show more</span></p>`:''}${items.length===0?'<div class="empty-note">Nothing found in this category.</div>':''}`;
+  }
+  const bulk=sel.size?`<div class="bulk"><b>${sel.size} selected</b>${DEC.map(d=>`<button class="dbtn ${d}" style="padding:4px 9px" data-bulk="${d}">${DSHORT[d]}</button>`).join('')}<button class="btn" data-bulk="clear">Clear decision</button><button class="btn" data-bulk="unselect">Unselect</button></div>`:'';
+  const extra=[];
+  if(S.findCat==='dup') extra.push(`<button class="btn" data-dupkeep="1" title="Keeps the shortest path in each group and marks the other copies Delete">Keep one per group, delete extra copies</button>`);
+  if(S.findCat==='empty') extra.push(`<button class="btn" data-selall="1">Select all empty folders</button>`);
+  else extra.push(`<button class="btn" data-selall="1">Select all shown</button>`);
+  $('tabBody').innerHTML=`
+    <div class="cat">${Object.entries(cats).map(([k,v])=>`<button data-cat="${k}" aria-pressed="${S.findCat===k}"><b>${fmtN(v.count)}</b>${esc(v.label)}<br><span>${esc(v.sub)}</span></button>`).join('')}</div>
+    <p class="note">${esc(c.desc)}</p>
+    <div class="toolbar">
+      <label class="field">Not touched since <select id="staleSel">${[6,12,18,24].map(m=>`<option value="${m}"${S.staleMonths===m?' selected':''}>${m} months ago</option>`).join('')}</select></label>
+      <label class="field"><input type="checkbox" id="sysChk" ${S.showSystem?'checked':''}> Include desktop.ini and other system files</label>
+      ${extra.join('')}
+    </div>
+    ${body}${bulk}`;
+}
+
+/* ---------- decisions tab ---------- */
+function reviewerNames(){return [S.reviewer||'Me'].concat(Object.keys(S.others))}
+function votesFor(n){
+  const out=[];
+  const me=effective(S.mine,n);if(me) out.push({who:S.reviewer||'Me',d:me.d,dest:me.dest,note:me.note,inherited:me.inherited,me:true});
+  for(const [who,m] of Object.entries(S.others)){const e=effective(m,n);if(e) out.push({who,d:e.d,dest:e.dest,note:e.note,inherited:e.inherited})}
+  return out;
+}
+function explicitPaths(){
+  const s=new Set(Object.keys(S.mine));
+  for(const m of Object.values(S.others)) Object.keys(m).forEach(p=>s.add(p));
+  return [...s].map(p=>S.byPath.get(p)).filter(Boolean).sort((a,b)=>a.path.localeCompare(b.path));
+}
+function conflict(n){
+  const v=votesFor(n);const set=new Set(v.map(x=>x.d));
+  return set.size>1;
+}
+let decOnlyConflicts=false;
+function renderDecisionsTab(){
+  const nodes=explicitPaths();
+  const list=decOnlyConflicts?nodes.filter(conflict):nodes;
+  const others=Object.keys(S.others);
+  $('tabBody').innerHTML=`
+    <p class="note">Every item with an explicit decision, from you and from any teammates whose files you imported. Folder decisions apply to everything inside unless a deeper item says otherwise.</p>
+    <div class="toolbar">
+      <label class="field"><input type="checkbox" id="onlyConf" ${decOnlyConflicts?'checked':''}> Only items where reviewers disagree (${fmtN(nodes.filter(conflict).length)})</label>
+      ${others.map(o=>`<span class="chip">${esc(o)} <span class="link" data-rmrev="${esc(o)}" title="Remove this reviewer's imported decisions">remove</span></span>`).join('')}
+    </div>
+    ${nodes.length===0?'<div class="empty-note">No decisions yet. Select a folder or file on the left and choose Keep, Archive, Delete, Move or Discuss.</div>':`
+    <table><colgroup><col><col style="width:80px"><col style="width:230px"><col style="width:220px"></colgroup><thead><tr><th class="nosort">Item</th><th class="nosort r">Size</th><th class="nosort">Reviewers</th><th class="nosort">Destination and notes</th></tr></thead><tbody>
+    ${list.slice(0,400).map(n=>{
+      const v=votesFor(n);const cf=conflict(n);
+      return `<tr class="item${S.selected===n?' sel':''}" data-id="${n.id}">
+        <td class="name" title="${esc(n.path)}">${pathHTML(n)}</td>
+        <td class="r">${fmtSize(n.isFolder?n.rSize:n.size)}</td>
+        <td class="wrap">${v.map(x=>`<span class="pill ${x.d}${x.inherited?' inh':''}" title="${esc(x.who)}">${esc(x.who)}: ${DSHORT[x.d]}</span>`).join(' ')}${cf?' <span class="flag dup">disagree</span>':''}</td>
+        <td class="small wrap">${v.map(x=>[x.dest&&('→ '+esc(x.dest)),x.note&&esc(x.note)].filter(Boolean).join(' · ')).filter(Boolean).join('<br>')}</td></tr>`}).join('')}
+    </tbody></table>${list.length>400?`<p class="small">Showing 400 of ${list.length}. Export the action plan to see all.</p>`:''}`}`;
+}
+function renderDecisionsTabCount(){$('nDec').textContent=explicitPaths().length?` ${explicitPaths().length}`:''}
+
+/* ---------- inspector ---------- */
+function renderInspector(){
+  const n=S.selected;const el=$('insp');
+  if(!n||n===S.root){
+    const sizeTop=S.root.children.filter(visible).slice().sort((a,b)=>b.rSize-a.rSize).slice(0,5);
+    el.innerHTML=`<h2>Start here</h2>
+      <p class="small">Pick a folder in the tree. Look at what is big, old or duplicated, then mark it. A decision on a folder covers everything inside it, and you can override single items.</p>
+      <div class="callout"><b>Shortcuts</b><br>↑ ↓ move, ← → collapse or open<br>K keep · A archive · D delete · M move · S discuss · C clear</div>
+      <p class="small"><b>Largest top-level areas</b></p>
+      ${sizeTop.map(c=>`<div class="small"><span class="link" data-go="${c.id}">${esc(c.name)}</span> · ${fmtSize(c.rSize)}</div>`).join('')}
+      <p class="small" style="margin-top:14px">For a folder, "last change" means the newest file inside it.</p>
+      <p class="small"><span class="link" id="loadCsv">Load a different inventory.csv</span></p>`;
+    return;
+  }
+  const e=myEff(n);const own=S.mine[n.path];
+  const dupOthers=n.dupGroup?n.dupGroup.filter(x=>x!==n):[];
+  const fam=n.family?n.family.filter(x=>x!==n):[];
+  const votes=votesFor(n).filter(v=>!v.me);
+  el.innerHTML=`
+    <h2>${n.isFolder?'▣':'▫'} ${esc(n.name)}</h2>
+    <div class="path">${esc(n.path)}</div>
+    <dl class="kv">
+      <dt>Type</dt><dd>${n.isFolder?'Folder':(n.ext||'File')}</dd>
+      <dt>Size</dt><dd>${fmtSize(n.isFolder?n.rSize:n.size)}</dd>
+      ${n.isFolder?`<dt>Files inside</dt><dd>${fmtN(n.rFiles)} in ${fmtN(n.rFolders)} folders</dd>`:''}
+      <dt>${n.isFolder?'Newest file':'Last changed'}</dt><dd>${(n.isFolder?n.rLast:n.mod)||'unknown'}</dd>
+      <dt>Path length</dt><dd>${n.path.length} characters</dd>
+      ${n.isFolder&&n.rDup?`<dt>Files with duplicates</dt><dd>${n.rDup}</dd>`:''}
+    </dl>
+    ${flagsHTML(n)?`<div style="margin-bottom:8px">${flagsHTML(n)}</div>`:''}
+    <div><b>Your decision</b> ${e&&e.inherited?`<span class="small">· inherited from <span class="link" data-go="${e.from.id}">${esc(e.from.name)}</span></span>`:''}</div>
+    <div class="decide">${DEC.map(d=>`<button class="dbtn ${d}${own&&own.d===d?' on':''}" data-dec="${d}">${DSHORT[d]}<kbd>${DKEY[d]}</kbd></button>`).join('')}
+      <button class="dbtn" data-dec="clear" style="color:var(--ink2)">Clear<kbd>C</kbd></button></div>
+    ${own&&own.d==='move'?`<label for="dest">New parent folder (full path from the root folder)</label><input type="text" id="dest" value="${esc(own.dest||'')}" placeholder="e.g. Finance\\Reference Documents">`:''}
+    ${own?`<label for="note">Note for the team</label><textarea id="note" placeholder="Why? Who should confirm?">${esc(own.note||'')}</textarea>`:`<p class="small">${e?'Choose a button to override the inherited decision for this item.':'Pick a decision to add a note.'}</p>`}
+    ${n.isFolder&&own?`<p class="small">Applies to all ${fmtN(n.rFiles)} files inside unless overridden.</p>`:''}
+    ${votes.length?`<div class="votes"><b>Other reviewers</b>${votes.map(v=>`<div><span class="pill ${v.d}${v.inherited?' inh':''}">${DSHORT[v.d]}</span> ${esc(v.who)}${v.dest?' → '+esc(v.dest):''}${v.note?`<span class="small"> · ${esc(v.note)}</span>`:''}</div>`).join('')}</div>`:''}
+    ${dupOthers.length?`<div class="votes"><b>Same file also at</b>${dupOthers.slice(0,8).map(x=>`<div class="small"><span class="link" data-go="${x.id}">${esc(x.path)}</span></div>`).join('')}${dupOthers.length>8?`<div class="small">and ${dupOthers.length-8} more</div>`:''}</div>`:''}
+    ${fam.length?`<div class="votes"><b>Similar files in this folder</b>${fam.slice(0,8).map(x=>`<div class="small"><span class="link" data-go="${x.id}">${esc(x.name)}</span> · ${x.mod||''}</div>`).join('')}</div>`:''}`;
+}
+
+/* ---------- render all ---------- */
+function renderTab(){
+  document.querySelectorAll('.tab').forEach(t=>t.setAttribute('aria-selected',t.dataset.tab===S.tab));
+  const sc=$('tabBody').scrollTop;
+  if(S.tab!=='web') webStop();
+  if(S.tab==='folder') renderFolderTab();
+  else if(S.tab==='web') renderWebTab();
+  else if(S.tab==='structure') renderStructureTab();
+  else if(S.tab==='findings') renderFindings();
+  else renderDecisionsTab();
+  $('tabBody').scrollTop=sc;
+}
+function renderAll(){
+  renderStrip();renderTree();renderTab();renderInspector();renderDecisionsTabCount();
+  
+  $('datasetInfo').textContent=`${S.datasetName} · ${fmtN(S.nodes.length-1)} items`;
+}
+function select(n,opts){
+  opts=opts||{};
+  S.selected=n;
+  let c=n.parent;while(c){S.expanded.add(c.id);c=c.parent}
+  if(opts.openFolder&&n.isFolder) S.expanded.add(n.id);
+  if(opts.tab) S.tab=opts.tab;
+  renderTree();renderTab();renderInspector();
+  const row=document.querySelector(`#tree .row[data-id="${n.id}"]`);
+  if(row) row.scrollIntoView({block:'nearest'});
+}
+
+/*__MAP_MODULE__*/
+
+/* ---------- events ---------- */
+$('tree').addEventListener('click',e=>{
+  const caret=e.target.closest('[data-caret]');
+  const row=e.target.closest('.row');if(!row) return;
+  const n=S.nodes[+row.dataset.id];
+  if(caret&&n.isFolder){S.expanded.has(n.id)?S.expanded.delete(n.id):S.expanded.add(n.id);renderTree();return}
+  S.tab=S.tab==='decisions'||S.tab==='findings'?'folder':S.tab;
+  select(n,{openFolder:true});
+});
+$('tabBody').addEventListener('click',e=>{
+  const t=e.target;
+  const tr=t.closest('tr.item');
+  if(t.closest('[data-chk]')){
+    const id=+t.closest('[data-chk]').dataset.chk;
+    t.checked?S.findSel.add(id):S.findSel.delete(id);renderFindings();return;
+  }
+  const go=t.closest('[data-go]');if(go){select(S.nodes[+go.dataset.go],{openFolder:true,tab:'folder'});return}
+  const th=t.closest('th[data-sort]');
+  if(th){const k=th.dataset.sort;S.sort=S.sort.k===k?{k,dir:-S.sort.dir}:{k,dir:k==='name'?-1:-1};renderFolderTab();return}
+  const cell=t.closest('.cell[data-id]');
+  if(cell){select(S.nodes[+cell.dataset.id]);return}
+  if(t.closest('[data-more]')){S.childLimit+=150;renderFolderTab();return}
+  if(t.closest('[data-clearfilter]')){S.filterDec=null;renderStrip();renderFolderTab();return}
+  if(t.closest('[data-morefind]')){S.findLimit+=300;renderFindings();return}
+  const cat=t.closest('[data-cat]');if(cat){S.findCat=cat.dataset.cat;S.findSel.clear();S.findLimit=300;renderFindings();return}
+  const bulk=t.closest('[data-bulk]');
+  if(bulk){
+    const nodes=[...S.findSel].map(i=>S.nodes[i]);const b=bulk.dataset.bulk;
+    if(b==='unselect'){S.findSel.clear();renderFindings();return}
+    setDecision(nodes,b==='clear'?null:b);S.findSel.clear();toast(`${nodes.length} items updated`);return;
+  }
+  if(t.closest('[data-selall]')){
+    const items=S.findCat==='dup'?S.dupGroups.flat():S.findCat==='ver'?S.verFamilies.flat():findItems(S.findCat);
+    items.slice(0,S.findCat==='dup'||S.findCat==='ver'?5000:S.findLimit).forEach(n=>S.findSel.add(n.id));renderFindings();return;
+  }
+  if(t.closest('[data-dupkeep]')){
+    if(!confirm(`For each of the ${S.dupGroups.length} duplicate groups, this keeps the copy with the shortest path and marks the other copies Delete. Items that already have a decision are left alone, and you can change any result afterwards. Continue?`)) return;
+    let del=0,kept=0;const t0=Date.now();
+    for(const g of S.dupGroups){
+      const free=g.filter(n=>!myEff(n));
+      if(!free.length) continue;
+      const keeperAlready=g.some(n=>{const e=myEff(n);return e&&e.d==='keep'});
+      let keeper=null;
+      if(!keeperAlready){keeper=free[0];S.mine[keeper.path]={d:'keep',dest:'',note:'Suggested keeper of duplicate set',t:t0};kept++}
+      const ref=keeper||g.find(n=>{const e=myEff(n);return e&&e.d==='keep'})||g[0];
+      const where=ref.path.split(SEP).slice(0,2).join(SEP);
+      for(const n of free){ if(n===keeper) continue; S.mine[n.path]={d:'delete',dest:'',note:'Extra copy; kept version is in '+where,t:t0};del++ }
+    }
+    persist();renderAll();toast(`${del} extra copies marked Delete, ${kept} copies marked Keep`);return;
+  }
+  const rm=t.closest('[data-rmrev]');
+  if(rm){delete S.others[rm.dataset.rmrev];persist();renderAll();return}
+  if(tr&&!t.closest('input')){select(S.nodes[+tr.dataset.id])}
+});
+$('tabBody').addEventListener('dblclick',e=>{
+  const el=e.target.closest('[data-id]');if(!el) return;
+  const n=S.nodes[+el.dataset.id];
+  if(n.isFolder){S.tab='folder';select(n,{openFolder:true})}
+});
+$('tabBody').addEventListener('change',e=>{
+  if(e.target.id==='staleSel'){S.staleMonths=+e.target.value;renderAll()}
+  if(e.target.id==='sysChk'){S.showSystem=e.target.checked;computeRollups();renderAll()}
+  if(e.target.id==='onlyConf'){decOnlyConflicts=e.target.checked;renderDecisionsTab()}
+});
+document.querySelector('.tabs').addEventListener('click',e=>{
+  const t=e.target.closest('.tab');if(!t) return;S.tab=t.dataset.tab;renderTab();
+});
+$('chips').addEventListener('click',e=>{
+  const c=e.target.closest('[data-chip]');if(!c) return;
+  S.filterDec=S.filterDec===c.dataset.chip?null:c.dataset.chip;S.tab='folder';renderStrip();renderTab();
+});
+$('insp').addEventListener('click',e=>{
+  const go=e.target.closest('[data-go]');if(go){select(S.nodes[+go.dataset.go],{openFolder:true,tab:'folder'});return}
+  if(e.target.id==='loadCsv'){$('fileCsv').click();return}
+  const b=e.target.closest('[data-dec]');if(!b||!S.selected) return;
+  applyKey(b.dataset.dec);
+});
+$('insp').addEventListener('input',e=>{
+  const n=S.selected;if(!n) return;
+  if(e.target.id==='note') setNote(n,e.target.value);
+  if(e.target.id==='dest') setNote(n,undefined,e.target.value);
+});
+function applyKey(d){
+  const n=S.selected;if(!n||n===S.root) return;
+  if(d==='clear') setDecision([n],null);
+  else setDecision([n],d);
+  if(d==='move'){const el=$('dest');if(el) el.focus()}
+}
+$('treeSearch').addEventListener('input',e=>{S.treeQuery=e.target.value;renderTree()});
+$('btnCollapse').addEventListener('click',()=>{S.expanded=new Set([S.root.id]);S.treeQuery='';$('treeSearch').value='';renderTree()});
+$('tm-resize')&&0;
+window.addEventListener('resize',()=>{if(S.tab==='folder') drawTreemap(viewFolder())});
+
+document.addEventListener('keydown',e=>{
+  const tag=(e.target.tagName||'').toLowerCase();
+  if(tag==='input'||tag==='textarea'||tag==='select'||e.metaKey||e.ctrlKey||e.altKey) return;
+  const k=e.key.toLowerCase();
+  const map={k:'keep',a:'archive',d:'delete',m:'move',s:'discuss',c:'clear',backspace:'clear'};
+  if(map[k]){e.preventDefault();applyKey(map[k]);return}
+  if(['arrowdown','arrowup','arrowleft','arrowright'].includes(k)){
+    const rows=visibleRows();let i=rows.indexOf(S.selected);
+    if(k==='arrowdown'){e.preventDefault();select(rows[Math.min(rows.length-1,i+1)]||rows[0])}
+    else if(k==='arrowup'){e.preventDefault();if(i>0) select(rows[i-1])}
+    else if(k==='arrowright'&&S.selected&&S.selected.isFolder){e.preventDefault();if(S.expanded.has(S.selected.id)){const c=rows[i+1];if(c&&c.parent===S.selected) select(c)}else{S.expanded.add(S.selected.id);renderTree()}}
+    else if(k==='arrowleft'&&S.selected){e.preventDefault();if(S.selected.isFolder&&S.expanded.has(S.selected.id)){S.expanded.delete(S.selected.id);renderTree()}else if(S.selected.parent&&S.selected.parent!==S.root) select(S.selected.parent)}
+  }
+});
+
+/* ---------- name modal, export, import ---------- */
+function askName(){
+  $('nameModal').classList.add('open');$('nameInput').value=S.reviewer;$('nameInput').focus();
+}
+function confirmName(){
+  const v=$('nameInput').value.trim();if(!v){$('nameInput').focus();return}
+  S.reviewer=v;$('reviewer').value=v;$('nameModal').classList.remove('open');persist();renderAll();
+}
+$('nameOk').addEventListener('click',confirmName);
+$('nameInput').addEventListener('keydown',e=>{if(e.key==='Enter') confirmName()});
+$('reviewer').addEventListener('change',e=>{S.reviewer=e.target.value.trim();persist();renderAll()});
+$('archiveRoot').addEventListener('change',e=>{S.archiveRoot=e.target.value.trim()||'Archive';persist()});
+
+function download(name,text,type){
+  const b=new Blob([text],{type:type||'text/plain'});const a=document.createElement('a');
+  a.href=URL.createObjectURL(b);a.download=name;document.body.appendChild(a);a.click();
+  setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500);
+}
+function csvCell(v){v=v==null?'':String(v);return /[",\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}
+$('btnShare').addEventListener('click',()=>{
+  if(!S.reviewer){askName();return}
+  const payload={format:'sp-cleanup-decisions',version:1,reviewer:S.reviewer,exported:new Date().toISOString(),dataset:S.datasetName,decisions:S.mine};
+  download(`decisions-${S.reviewer.replace(/[^a-z0-9]+/gi,'_')}.json`,JSON.stringify(payload,null,1),'application/json');
+  toast('Decisions saved. Send this file to whoever is merging the reviews.');
+});
+$('btnImport').addEventListener('click',()=>$('fileImport').click());
+$('fileImport').addEventListener('change',async e=>{
+  let added=0;
+  for(const f of e.target.files){
+    try{
+      const o=JSON.parse(await f.text());
+      if(o.format!=='sp-cleanup-decisions'||!o.decisions) throw new Error('bad');
+      const who=o.reviewer||f.name;
+      if(who===S.reviewer){ if(!confirm(`"${who}" is your own name. Replace your current decisions with the ones in ${f.name}?`)) continue; S.mine=o.decisions; }
+      else S.others[who]=o.decisions;
+      added++;
+    }catch(err){toast(`Could not read ${f.name}. Use a file made with "Save my decisions".`)}
+  }
+  e.target.value='';
+  if(added){persist();S.tab='decisions';renderAll();toast(`${added} reviewer file${added>1?'s':''} imported`)}
+});
+$('fileCsv').addEventListener('change',async e=>{
+  const f=e.target.files[0];if(!f) return;
+  if(loadDataset(await f.text(),f.name)){renderAll();toast('Inventory loaded. Existing decisions were matched by path.')}
+  e.target.value='';
+});
+
+function consensus(n){
+  const maps=[S.mine].concat(Object.values(S.others));
+  const tally={};let voters=0;
+  for(const m of maps){const e=effective(m,n);if(e){tally[e.d]=(tally[e.d]||0)+1;voters++}}
+  if(!voters) return null;
+  const top=Object.entries(tally).sort((a,b)=>b[1]-a[1]);
+  if(top.length>1&&top[0][1]===top[1][1]) return {d:'discuss',tie:true};
+  return {d:top[0][0]};
+}
+$('btnExport').addEventListener('click',()=>{
+  const hasOthers=Object.keys(S.others).length>0;
+  let useTeam=false;
+  if(hasOthers) useTeam=confirm('Teammates\' decisions are loaded.\n\nOK = export the team result (majority wins, ties become Discuss)\nCancel = export only your own decisions');
+  const archive=S.archiveRoot||'Archive';
+  const lines=[['path','type','size_kb','modified','action','new_path','source','reviewers','notes'].join(',')];
+  const sorted=S.nodes.filter(n=>n!==S.root).sort((a,b)=>a.path.localeCompare(b.path));
+  for(const n of sorted){
+    if(!n.isFolder&&!visible(n)&&!S.mine[n.path]) continue;
+    let e,action='undecided',source='none',dest='';
+    if(useTeam){
+      const c=consensus(n);
+      if(c){action=c.d;
+        const m=effective(S.mine,n)||{};
+        let cur=n;let anc=null;
+        for(const map of [S.mine].concat(Object.values(S.others))){const x=effective(map,n);if(x&&x.d===c.d&&!anc){anc=x;}}
+        e=anc;source=anc?(anc.inherited?'inherited':'explicit'):'consensus';
+      }
+    }else{
+      e=myEff(n);if(e){action=e.d;source=e.inherited?'inherited':'explicit'}
+    }
+    if(action==='move'&&e){
+      const anc=e.from||n;
+      const rel=n.path.slice((anc.parent&&anc.parent.path?anc.parent.path.length+1:0));
+      dest=(e.dest?e.dest+SEP:'')+rel;
+    }else if(action==='archive') dest=archive+SEP+n.path;
+    const votes=votesFor(n).map(v=>`${v.who}:${v.d}`).join('; ');
+    const notes=votesFor(n).filter(v=>v.note&&!v.inherited).map(v=>`${v.who}: ${v.note}`).join(' | ');
+    lines.push([n.path,n.isFolder?'folder':'file',n.isFolder?'':n.size,n.isFolder?n.rLast:n.mod,action,dest,source,votes,notes].map(csvCell).join(','));
+  }
+  download('cleanup_action_plan.csv','﻿'+lines.join('\r\n'),'text/csv');
+  toast('Action plan exported. One row per item, with the action that applies to it.');
+});
+
+/* ---------- boot ---------- */
+restore();
+$('reviewer').value=S.reviewer;$('archiveRoot').value=S.archiveRoot;
+if(!loadDataset(window.__INVENTORY_CSV__,'inventory.csv')){document.body.innerHTML='<p style="padding:20px">The embedded inventory could not be read.</p>'}
+renderSaveState();
+renderAll();
+if(!S.reviewer) askName();
+window.__S=S;
+})();
+</script>
+</body>
+</html>

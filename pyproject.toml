@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "file-cleanup-tool"
+dynamic = ["version"]
+description = "Review a messy folder visually with your team, plan a clean structure, and copy it safely. Standard library only."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "cnote203" }]
+keywords = ["file organization", "cleanup", "sharepoint", "onedrive", "folder structure", "duplicates"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Environment :: Console",
+  "Intended Audience :: End Users/Desktop",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: System :: Filesystems",
+  "Topic :: Utilities",
+]
+dependencies = []
+
+[project.optional-dependencies]
+test = ["playwright"]
+
+[project.urls]
+Homepage = "https://github.com/cnote203/File_Cleanup_Tool"
+Issues = "https://github.com/cnote203/File_Cleanup_Tool/issues"
+
+[project.scripts]
+file-cleanup = "file_cleanup_tool.cli:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "file_cleanup_tool.__version__" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+file_cleanup_tool = ["explorer/*.html", "explorer/*.js"]
