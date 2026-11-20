@@ -14,3 +14,8 @@ suggested_plan.csv
 copy_log.csv
 demo_folder/
 decisions-*.json
+
+# Built explorer pages embed your whole inventory (real file names). Never commit them.
+explorer.html
+*_explorer*.html
+site_cleanup_explorer*.html
